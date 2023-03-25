@@ -7,7 +7,7 @@ from api.models import Expense
 from api.serializers import ExpenseSerializer
 
 
-class ExpenseViewSetTestCase(APITestCase):
+class ExpenseBasicCrudTestCase(APITestCase):
     def setUp(self):
         self.expense1 = Expense.objects.create(
             description="Expense 1", value="50.99", date=datetime.now().date()
@@ -77,3 +77,26 @@ class ExpenseViewSetTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Expense.objects.filter(id=self.expense2.id).exists())
+
+
+class ExpenseByYearMonthTestCase(APITestCase):
+    def setUp(self):
+        self.date = datetime.now()
+        self.expense1 = Expense.objects.create(
+            description="Expense 1", value="50.99", date=self.date.date()
+        )
+        self.expense2 = Expense.objects.create(
+            description="Expense 2", value="75.30", date=self.date.date()
+        )
+        self.year = self.date.year
+        self.month = f"{self.date:%m}"
+
+    def test_must_get_expenses_by_year_month(self):
+        url = reverse("expense-by-year-month", args=[self.year, self.month])
+        response = self.client.get(path=url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for expense in response.data:
+            expense_date = datetime.strptime(expense["date"], "%Y-%m-%d")
+            self.assertEqual(expense_date.year, self.year)
+            self.assertEqual(f"{expense_date.month:02d}", self.month)

@@ -77,3 +77,26 @@ class IncomeViewSetTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Income.objects.filter(id=self.income1.id).exists())
+
+
+class IncomeByYearMonthTestCase(APITestCase):
+    def setUp(self):
+        self.date = datetime.now()
+        self.income1 = Income.objects.create(
+            description="Income 1", value="200.30", date=self.date.date()
+        )
+        self.income2 = Income.objects.create(
+            description="Income 2", value="90.10", date=self.date.date()
+        )
+        self.year = self.date.year
+        self.month = f"{self.date:%m}"
+
+    def test_must_get_incomes_by_year_month(self):
+        url = reverse("income-by-year-month", args=[self.year, self.month])
+        response = self.client.get(path=url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for income in response.data:
+            income_date = datetime.strptime(income["date"], "%Y-%m-%d")
+            self.assertEqual(income_date.year, self.year)
+            self.assertEqual(f"{income_date.month:02d}", self.month)
