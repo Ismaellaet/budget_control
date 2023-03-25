@@ -3,8 +3,8 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from django.urls import reverse
 
-from api.models import Expense
-from api.serializers import ExpenseSerializer
+from ...models import Expense
+from ..serializers.expenses import ExpenseSerializer
 
 
 class ExpenseBasicCrudTestCase(APITestCase):

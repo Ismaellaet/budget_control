@@ -1,6 +1,7 @@
 from rest_framework import routers
 
-from .views import IncomeViewSet, ExpenseViewSet
+from .views.expenses import ExpenseViewSet
+from .views.incomes import IncomeViewSet
 
 
 router_api = routers.DefaultRouter()

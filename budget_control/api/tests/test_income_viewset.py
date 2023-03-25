@@ -3,8 +3,8 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from django.urls import reverse
 
-from api.models import Income
-from api.serializers import IncomeSerializer
+from ...models import Income
+from ..serializers.incomes import IncomeSerializer
 
 
 class IncomeViewSetTestCase(APITestCase):
