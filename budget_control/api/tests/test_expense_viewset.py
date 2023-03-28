@@ -1,7 +1,10 @@
 from datetime import datetime
+
+from django.urls import reverse
+
+from model_bakery import baker
 from rest_framework.test import APITestCase
 from rest_framework import status
-from django.urls import reverse
 
 from ...models import Expense
 from ..serializers.expenses import ExpenseSerializer
@@ -9,17 +12,11 @@ from ..serializers.expenses import ExpenseSerializer
 
 class ExpenseBasicCrudTestCase(APITestCase):
     def setUp(self):
-        self.expense1 = Expense.objects.create(
-            description="Expense 1", value="50.99", date=datetime.now().date()
-        )
-        self.expense2 = Expense.objects.create(
-            description="Expense 2", value="75.30", date=datetime.now().date()
-        )
+        self.expenses = baker.make("Expense", 2)
 
     def test_list_expenses(self):
         response = self.client.get(reverse("expense-list"))
-        expenses = Expense.objects.all()
-        serializer = ExpenseSerializer(expenses, many=True)
+        serializer = ExpenseSerializer(self.expenses, many=True)
 
         self.assertEqual(response.data, serializer.data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -49,47 +46,48 @@ class ExpenseBasicCrudTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_retrieve_expense(self):
-        response = self.client.get(reverse("expense-detail", args=[self.expense1.id]))
-        expense = Expense.objects.get(id=self.expense1.id)
+        expense = self.expenses[0]
+        response = self.client.get(
+            reverse("expense-detail", args=[expense.id])
+        )
+        expense = Expense.objects.get(id=expense.id)
         serializer = ExpenseSerializer(expense)
 
         self.assertEqual(response.data, serializer.data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_update_expense(self):
+        expense = self.expenses[0]
         data = {
             "description": "Updated Expense",
             "value": "99.99",
             "date": "2022-02-27",
         }
-        url = reverse("expense-detail", args=[self.expense1.id])
+
+        url = reverse("expense-detail", args=[expense.id])
         response = self.client.put(path=url, data=data)
-        self.expense1.refresh_from_db()
+        expense.refresh_from_db()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.expense1.description, data["description"])
-        self.assertEqual(str(self.expense1.value), data["value"])
-        self.assertEqual(str(self.expense1.date), data["date"])
+        self.assertEqual(expense.description, data["description"])
+        self.assertEqual(str(expense.value), data["value"])
+        self.assertEqual(str(expense.date), data["date"])
 
     def test_delete_expense(self):
-        url = reverse("expense-detail", args=[self.expense2.id])
+        expense = self.expenses[0]
+        url = reverse("expense-detail", args=[expense.id])
         response = self.client.delete(path=url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Expense.objects.filter(id=self.expense2.id).exists())
+        self.assertFalse(Expense.objects.filter(id=expense.id).exists())
 
 
 class ExpenseByYearMonthTestCase(APITestCase):
     def setUp(self):
         self.date = datetime.now()
-        self.expense1 = Expense.objects.create(
-            description="Expense 1", value="50.99", date=self.date.date()
-        )
-        self.expense2 = Expense.objects.create(
-            description="Expense 2", value="75.30", date=self.date.date()
-        )
         self.year = self.date.year
         self.month = f"{self.date:%m}"
+        self.expenses = baker.make("Expense", 2, date=self.date)
 
     def test_must_get_expenses_by_year_month(self):
         url = reverse("expense-by-year-month", args=[self.year, self.month])
