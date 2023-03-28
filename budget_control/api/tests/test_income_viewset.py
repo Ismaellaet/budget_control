@@ -1,7 +1,10 @@
 from datetime import datetime
+
+from django.urls import reverse
+
+from model_bakery import baker
 from rest_framework.test import APITestCase
 from rest_framework import status
-from django.urls import reverse
 
 from ...models import Income
 from ..serializers.incomes import IncomeSerializer
@@ -9,17 +12,11 @@ from ..serializers.incomes import IncomeSerializer
 
 class IncomeViewSetTestCase(APITestCase):
     def setUp(self):
-        self.income1 = Income.objects.create(
-            description="Income 1", value="5000.00", date=datetime.now().date()
-        )
-        self.income2 = Income.objects.create(
-            description="Income 2", value="1000.00", date=datetime.now().date()
-        )
+        self.incomes = baker.make("Income", 2)
 
     def test_list_incomes(self):
         response = self.client.get(reverse("income-list"))
-        incomes = Income.objects.all()
-        serializer = IncomeSerializer(incomes, many=True)
+        serializer = IncomeSerializer(self.incomes, many=True)
 
         self.assertEqual(response.data, serializer.data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -49,47 +46,46 @@ class IncomeViewSetTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_retrieve_income(self):
-        response = self.client.get(reverse("income-detail", args=[self.income1.id]))
-        income = Income.objects.get(id=self.income1.id)
+        income = self.incomes[0]
+        response = self.client.get(reverse("income-detail", args=[income.id]))
+        income = Income.objects.get(id=income.id)
         serializer = IncomeSerializer(income)
 
         self.assertEqual(response.data, serializer.data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_update_income(self):
+        income = self.incomes[0]
         data = {
             "description": "Updated Income",
             "value": "6000.00",
             "date": "2022-03-01",
         }
-        url = reverse("income-detail", args=[self.income1.id])
+
+        url = reverse("income-detail", args=[income.id])
         response = self.client.put(path=url, data=data)
-        self.income1.refresh_from_db()
+        income.refresh_from_db()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.income1.description, data["description"])
-        self.assertEqual(str(self.income1.value), data["value"])
-        self.assertEqual(str(self.income1.date), data["date"])
+        self.assertEqual(income.description, data["description"])
+        self.assertEqual(str(income.value), data["value"])
+        self.assertEqual(str(income.date), data["date"])
 
     def test_delete_income(self):
-        url = reverse("income-detail", args=[self.income1.id])
+        income = self.incomes[0]
+        url = reverse("income-detail", args=[income.id])
         response = self.client.delete(path=url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Income.objects.filter(id=self.income1.id).exists())
+        self.assertFalse(Income.objects.filter(id=income.id).exists())
 
 
 class IncomeByYearMonthTestCase(APITestCase):
     def setUp(self):
         self.date = datetime.now()
-        self.income1 = Income.objects.create(
-            description="Income 1", value="200.30", date=self.date.date()
-        )
-        self.income2 = Income.objects.create(
-            description="Income 2", value="90.10", date=self.date.date()
-        )
         self.year = self.date.year
         self.month = f"{self.date:%m}"
+        self.incomes = baker.make("Income", 2, date=self.date)
 
     def test_must_get_incomes_by_year_month(self):
         url = reverse("income-by-year-month", args=[self.year, self.month])
