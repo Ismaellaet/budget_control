@@ -76,5 +76,6 @@ class TestExpenseViewSet:
         assert response.status_code == status.HTTP_200_OK
         for expense in response.json():
             expense_date = datetime.strptime(expense["date"], "%Y-%m-%d")
+            assert expense not in mock_expenses
             assert expense_date.year == year
             assert expense_date.month == month
