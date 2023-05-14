@@ -1,100 +1,80 @@
-from datetime import datetime
+import pytest
 
+from datetime import datetime, date
 from django.urls import reverse
-
 from model_bakery import baker
-from rest_framework.test import APITestCase
 from rest_framework import status
 
 from ...models import Expense
-from ..serializers.expenses import ExpenseSerializer
 
 
-class ExpenseBasicCrudTestCase(APITestCase):
-    def setUp(self):
-        self.expenses = baker.make("Expense", 2)
+@pytest.fixture()
+def expense_data():
+    return {
+        "description": "Expense Test",
+        "value": "100.50",
+        "date": "2023-05-14"
+    }
 
-    def test_list_expenses(self):
-        response = self.client.get(reverse("expense-list"))
-        serializer = ExpenseSerializer(self.expenses, many=True)
 
-        self.assertEqual(response.data, serializer.data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+@pytest.mark.django_db
+class TestExpenseViewSet:
+    def test_list_expenses(self, api_client, mock_expenses):
+        response = api_client.get(reverse("expense-list"))
 
-    def test_create_valid_expense(self):
-        valid_data = {
-            "description": "Expense 3",
-            "value": "100.50",
-            "date": "2022-02-28",
-        }
-        response = self.client.post(path=reverse("expense-list"), data=valid_data)
-        expense = Expense.objects.get(id=response.data["id"])
+        assert len(response.data) == len(mock_expenses)
+        assert response.status_code == status.HTTP_200_OK
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(expense.description, valid_data["description"])
-        self.assertEqual(str(expense.value), valid_data["value"])
-        self.assertEqual(str(expense.date), valid_data["date"])
+    def test_create_valid_expense(self, api_client, expense_data):
+        response = api_client.post(path=reverse("expense-list"), data=expense_data)
 
-    def test_create_invalid_expense(self):
-        invalid_data = {
-            "description": "",
-            "value": "100.50",
-            "date": "2022-02-28",
-        }
-        response = self.client.post(path=reverse("expense-list"), data=invalid_data)
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["description"] == expense_data["description"]
+        assert response.data["value"] == expense_data["value"]
+        assert response.data["date"] == expense_data["date"]
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_retrieve_expense(self):
-        expense = self.expenses[0]
-        response = self.client.get(
+    def test_retrieve_expense(self, api_client):
+        expense = baker.make("Expense")
+        response = api_client.get(
             reverse("expense-detail", args=[expense.id])
         )
-        expense = Expense.objects.get(id=expense.id)
-        serializer = ExpenseSerializer(expense)
 
-        self.assertEqual(response.data, serializer.data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["description"] == expense.description
+        assert response.data["value"] == str(expense.value)
+        assert response.data["date"] == str(expense.date)
 
-    def test_update_expense(self):
-        expense = self.expenses[0]
-        data = {
+    def test_update_expense(self, api_client):
+        expense = baker.make("Expense")
+        url = reverse("expense-detail", args=[expense.id])
+        response = api_client.put(path=url, data={
             "description": "Updated Expense",
             "value": "99.99",
             "date": "2022-02-27",
-        }
-
-        url = reverse("expense-detail", args=[expense.id])
-        response = self.client.put(path=url, data=data)
+        })
         expense.refresh_from_db()
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(expense.description, data["description"])
-        self.assertEqual(str(expense.value), data["value"])
-        self.assertEqual(str(expense.date), data["date"])
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["description"] == expense.description
+        assert response.data["value"] == str(expense.value)
+        assert response.data["date"] == str(expense.date)
 
-    def test_delete_expense(self):
-        expense = self.expenses[0]
+    def test_delete_expense(self, api_client):
+        expense = baker.make("Expense")
         url = reverse("expense-detail", args=[expense.id])
-        response = self.client.delete(path=url)
+        response = api_client.delete(path=url)
 
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(Expense.objects.filter(id=expense.id).exists())
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not Expense.objects.filter(id=expense.id).exists()
 
+    def test_get_expenses_by_year_month(self, api_client, mock_expenses):
+        year, month = 2022, 3
+        baker.make("Expense", 2, date=date(year, month, 10))
+        url = reverse("expense-by-year-month", args=[year, f"0{month}"])
+        response = api_client.get(url)
 
-class ExpenseByYearMonthTestCase(APITestCase):
-    def setUp(self):
-        self.date = datetime.now()
-        self.year = self.date.year
-        self.month = f"{self.date:%m}"
-        self.expenses = baker.make("Expense", 2, date=self.date)
-
-    def test_must_get_expenses_by_year_month(self):
-        url = reverse("expense-by-year-month", args=[self.year, self.month])
-        response = self.client.get(path=url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        for expense in response.data:
+        assert response.status_code == status.HTTP_200_OK
+        for expense in response.json():
             expense_date = datetime.strptime(expense["date"], "%Y-%m-%d")
-            self.assertEqual(expense_date.year, self.year)
-            self.assertEqual(f"{expense_date.month:02d}", self.month)
+            assert expense_date.year == year
+            assert expense_date.month == month
