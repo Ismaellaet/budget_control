@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'budget_control.apps.BudgetControlConfig',
     'django_filters',
+    'rest_framework_simplejwt',
 ]
 
 MIDDLEWARE = [
@@ -58,6 +59,15 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'setup.urls'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
 
 TEMPLATES = [
     {

@@ -3,12 +3,25 @@ import pytest
 from datetime import date
 from model_bakery import baker
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken
 
 
 @pytest.fixture()
 def api_client():
     client = APIClient()
     return client
+
+
+@pytest.fixture()
+def api_client_auth(api_client, user):
+    token = AccessToken.for_user(user)
+    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+    return api_client
+
+
+@pytest.fixture()
+def user():
+    return baker.make("User")
 
 
 @pytest.fixture()
