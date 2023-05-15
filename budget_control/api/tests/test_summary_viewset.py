@@ -1,53 +1,42 @@
-from datetime import datetime
+import pytest
 
 from django.urls import reverse
-
-from model_bakery import baker
 from rest_framework import status
-from rest_framework.test import APITestCase
 
 
-class SummaryViewSetTestCase(APITestCase):
-    def setUp(self):
-        self.date = datetime.now()
-        self.year = self.date.year
-        self.month = f"{self.date:%m}"
-        self.incomes = baker.make("Income", 2)
-        self.expenses1 = baker.make("Expense", 2, category="food", date=self.date)
-        self.expenses2 = baker.make("Expense", 2, category="health", date=self.date)
-        self.expenses = self.expenses1 + self.expenses2
-
-    def test_get_summary(self):
+@pytest.mark.django_db
+class TestSummaryViewSet:
+    def test_get_summary(self, api_client, mock_food_expenses, mock_health_expenses, mock_incomes, mock_date):
         url = reverse(
-            "summary-get-summary", kwargs={"year": self.year, "month": self.month}
+            "summary-get-summary", args=[mock_date.year, f"0{mock_date.month}"]
         )
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = api_client.get(url)
+        assert response.status_code == status.HTTP_200_OK
 
-        total_income = sum([income.value for income in self.incomes])
-        total_expense = sum([expense.value for expense in self.expenses])
+        total_income = sum([income.value for income in mock_incomes])
+        total_expense = sum([expense.value for expense in mock_health_expenses + mock_food_expenses])
         total_spent_by_category = {
-            "food": str(sum([expense.value for expense in self.expenses1])),
-            "health": str(sum([expense.value for expense in self.expenses2])),
+            "food": str(sum([expense.value for expense in mock_food_expenses])),
+            "health": str(sum([expense.value for expense in mock_health_expenses])),
         }
 
-        self.assertEqual(response.data["total_income"], str(total_income))
-        self.assertEqual(response.data["total_expense"], str(total_expense))
-        self.assertEqual(response.data["total_spent_by_category"], total_spent_by_category)
-        self.assertEqual(response.data["balance"], str(total_income - total_expense))
+        assert response.data["total_income"] == str(total_income)
+        assert response.data["total_expense"] == str(total_expense)
+        assert response.data["total_spent_by_category"] == total_spent_by_category
+        assert response.data["balance"] == str(total_income - total_expense)
 
-    def test_get_summary_invalid_month(self):
-        month_ahead = f"{self.date.month + 1:02d}"
+    def test_get_summary_invalid_month(self, api_client, mock_date, mock_expenses):
         url = reverse(
             "summary-get-summary",
-            kwargs={"year": self.year, "month": month_ahead},
+            args=[mock_date.year, f"0{mock_date.month + 1}"]
         )
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = api_client.get(url)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_get_summary_invalid_year(self):
+    def test_get_summary_invalid_year(self, api_client, mock_date, mock_expenses):
         url = reverse(
-            "summary-get-summary", kwargs={"year": self.year + 1, "month": self.month}
+            "summary-get-summary",
+            args=[mock_date.year + 1, f"0{mock_date.month}"]
         )
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = api_client.get(url)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
